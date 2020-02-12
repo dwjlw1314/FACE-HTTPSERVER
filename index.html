@@ -1,0 +1,133 @@
+<!DOCCTYPE html>
+
+<html>
+
+<head>
+
+    <meta charset="utf-8">
+
+    <title>人脸检测HTTP服务器接口文档</title>
+
+</head>
+
+<body>
+
+<p>http request:  </p>
+
+<p>    1 --> URL: http://192.168.9.1:8080/getFaceALL?type=1       #type类型 (1 人脸框，特征值，性别年龄； 2 人脸框和特征值；3 性别年龄；)  </p>
+
+<p>     http数据头格式包含 "GET /getFaceALL?type=1  </p>
+
+<p>     body:  《使用 json格式》   { "uuid" : "19022310344332" , "MatSize" : 46656003 , "Width" : 1926 , "Height" : 1080 , "Channel" : 3 }  </p>
+
+<p>     正确请求回应格式 response：     </p>
+<p>     { "uuid" : "19022310344332" , "status" : success_id }  </p>
+
+<p>     错误请求回应格式 response：    </p>
+<p>     { "status" : error_id }    </p>
+
+
+<p>    1 --> send数据： 《使用字符串形式》 "19022310344332;\u3453\u5456\u6564......." }   #;后面是图片数据    </p>
+
+<p>     http数据头格式包含 "POST /getFaceALL?type=1    </p>
+
+<p>     数据传输过程，正确请求回应格式 response：    </p>
+<p>   { "uuid" : "19022310344332" , "status" : success_id , "receive_size" : 10000 }    </p>
+
+<p>     数据传输完成，正确回应格式 response:    </p>
+<p>     { "uuid" : "19022310344332" , "status" : success_id }    </p>
+
+<p>     错误请求回应格式 response：    </p>
+<p>    { "status" : error_id }    </p>
+
+<p>    完整的一次请求 回应 格式 response：    </p>
+<p>    { "uuid" : "19022310344332" , "status" : success_id , "facenum" : 3 , "faceresult" : [["facebox" : [ 64.0234 , 54.2354 , 42.13506, 12.03445 ] ,
+        "faceage" :  16 , "facesex" : 0 , "landmark" : [x,y,x1,y1,x2,y2,x3,y3,x4,y4] , "feature" : [ 0.012343454 , 0.156783455 , ... ]][...]] }
+     # feature 是 array[512] 。  sex 中 0 是男； 1 是女     </p>
+
+<p>+++++++++++++++++++++++++    </p>
+
+<p>     2 --> URL: http://192.168.9.1:8080/setFaceFeature?type=1      #type (1 add ; 2 delete ; 3 update) 接口可选模式    </p>
+
+<p>     http数据头格式包含 "GET /setFaceFeature?type=1    </p>
+
+<p>     body:  《使用 json格式》   { "uuid" : "20022310344332" , "FeatureSize" : 1002 , "FeatureNum" : 1 }    </p>
+
+
+<p>     正确请求回应格式 response：    </p>
+<p>     { "uuid" : "20022310344332" , "status" : success_id }    </p>
+
+<p>     错误请求回应格式 response：    </p>
+<p>   { "status" : error_id }    </p>
+
+
+<p>     2 --> send数据： 《使用 json格式》 { "gsafety" : ["id" : "20022310344332" , "feature" : [0.0123456,0.0234562,...]][...] }    </p>
+
+<p>     http数据头格式包含 "POST /setFaceFeature?uuid=20022310344332    </p>
+
+<p>     数据传输过程中，正确请求回应格式 response：    </p>
+<p>    { "uuid" : "20022310344332" , "status" : success_id , "receive_size" : 10000 }    </p>
+
+<p>     数据传输完成，正确回应格式 response:    </p>
+<p>     { "uuid" : "20022310344332" , "status" : success_id }    </p>
+
+<p>     错误请求回应格式 response：    </p>
+<p>    { "status" : error_id }    </p>
+
+<p>   完整的一次请求 回应 格式 response：    </p>
+<p>    { "uuid" : "20022310344332" , "status" : success_id }     </p>
+
+<p>+++++++++++++++++++++++++    </p>
+
+<p>     3 --> URL: http://192.168.9.1:8080/getFaceFeatureCompare?type=1      #type (1 1:1; 2 1:n) 如果是1:1模式，则接口 2 是必选模式    </p>
+
+<p>     http数据头格式包含 "POST /getFaceFeatureCompare?type=1    </p>
+
+<p>     body:  《使用 json格式》   { "uuid" : "30022310344332" , "FeatureSize" : 1002 , "FeatureNum" : n }    </p>
+
+<p>     正确请求回应格式 response：    </p>
+<p>     { "uuid" : "30022310344332" , "status" : success_id }    </p>
+
+<p>     错误请求回应格式 response：    </p>
+<p>    { "status" : error_id }    </p>
+
+<p>     3 --> send数据： 《使用 json格式》 { "gsafety" : [[0.0123456,0.0234562,...]][...] }   #...是512维特征值    </p>
+
+<p>     http数据头格式包含 "POST /getFaceFeatureCompare?uuid=30022310344332    </p>
+
+<p>     数据传输过程中，正确请求回应格式 response：    </p>
+<p>    { "uuid" : "30022310344332" , "status" : success_id , "receive_size" : 10000 }    </p>
+
+<p>     数据传输完成，正确回应格式 response:    </p>
+<p>     { "uuid" : "30022310344332" , "status" : success_id }    </p>
+
+<p>     错误请求回应格式 response：    </p>
+<p>    { "status" : error_id }    </p>
+
+<p>    完整的一次请求 回应 格式 response：    </p>
+<p>   { "uuid" : "30022310344332" , "status" : success_id , "sim" : 0.54 , "id" : 2 }  1:1 模式 id 是setFeature接口设置的id; 1:n模式 id 是接口传入的特征最佳相似度的数据位置    </p>
+
+
+
+<p>+++++++++++++++++++++++++    </p>
+
+
+<p>指令处理流程：    </p>
+
+<p>client：发送一次请求    </p>
+<p>service： 接受请求，服务端创建对应的处理类，发送回应指令    </p>
+
+<p>client：收到回应，开始发送图片数据    </p>
+<p>service：接受图片数据，发送回应指令    </p>
+
+<p>+++++++++++++++++++++++++    </p>
+
+<p>service: 完整接受图片，进行处理，回应结果指令    </p>
+
+
+<p>声明：    </p>
+<p>json数据序列化图片数据会涉及到编码问题，所有暂时使用字符串的传输方式    </p>
+<p>指令格式基本确定，如有其他数据，及时联系    </p>
+<p>指令发送，回应和接受方式，目前是临时方案，后期双方可以进行再修改    </p>
+
+</body>
