@@ -5,10 +5,10 @@
  *      Author: ai_002
  */
 
-#include <HttpServer.h>
+#include "HttpServer.h"
 
 extern http_opts g_http_server_opts;
-std::string g_web_dir = "./gsafety"; //网页根目录
+std::string g_web_dir = "/home/gs-cv/"; //网页根目录
 
 //std::map<std::string, std::shared_ptr<MatData> > data_queue;
 std::map<std::string, MatData> date_queue;
@@ -37,7 +37,7 @@ HttpServer::HttpServer(std::string port, http_opts* opts)
 
 	if (!opts)
 	{
-		//m_http_server_opts.enable_directory_listing = "yes";
+		m_http_server_opts.enable_directory_listing = "yes";
 		m_http_server_opts.document_root = g_web_dir.c_str();
 		m_http_server_opts.index_files = "index.html";
 		// TODO：其他设置
@@ -75,6 +75,9 @@ bool HttpServer::Start(std::string eth_name)
     mg_set_protocol_http_websocket(m_nc);
     //cout << "starting http server listen address: " << name << ":" << m_port << endl;
     cout << "starting http server listen address: " << m_port << endl;
+
+    //注册回调处理函数
+    //mg_register_http_endpoint(m_nc, "/upload", handle_upload MG_UD_ARG(NULL));
 
     // loop
     while (true)
@@ -139,6 +142,8 @@ void HttpServer::http_event_handler(http_conn *nc, int event_type, void *event_d
 	{
 		cout << "http-->event_type: " << "MG_EV_HTTP_REQUEST" << endl;
 		http_message *http_req = (http_message *)event_data;
+		//文件上传可以启用该函数，如果传输数据打开，客户端postman接收不到应答
+	    //mg_serve_http(nc, http_req, g_http_server_opts);
 
 		HandleEvent(nc, http_req);
 		//mbuf_clear(&nc->recv_mbuf);
@@ -180,7 +185,7 @@ void HttpServer::http_event_handler(http_conn *nc, int event_type, void *event_d
 			void *tmpAddrPtr = &psAdd->sin.sin_addr;
 			char addressBuffer[INET_ADDRSTRLEN] = {0};
 			inet_ntop(AF_INET, tmpAddrPtr, addressBuffer, INET_ADDRSTRLEN);
-			cout << "peer IP: " << addressBuffer << "port: " << psAdd->sin.sin_port << endl;
+			cout << "peer IP: " << addressBuffer << "  port: " << psAdd->sin.sin_port << endl;
 		}
 		else if (psAdd->sin.sin_family == PF_INET6)
 		{
@@ -268,7 +273,15 @@ void HttpServer::HandleEvent(http_conn *connection, http_message *http_req)
     if (it != m_handler_map.end())
     {
         ReqHandler handle_func = it->second;
-        handle_func(connection, http_req, SendRsp);
+        try {
+        	handle_func(connection, http_req, SendRsp);
+        }
+        catch(Json::LogicError& err)
+        {
+        	//send HTTP_REQUEST_PARSE_ERR
+        	std::string msg = "{ \"status\": 102 }";
+        	SendRsp(connection, msg);
+        }
 		return;
     }
 
@@ -276,17 +289,33 @@ void HttpServer::HandleEvent(http_conn *connection, http_message *http_req)
     if (route_check(http_req, "/test"))
     {
         // 直接回传
-        SendRsp(connection, "welcome to gsafety httpserver");
+        SendRsp(connection, "Welcome Access Gsafety FaceDetected HttpServer");
     }
     else if (route_check(http_req, "/help"))
     {
-    	mg_serve_http(connection, http_req, g_http_server_opts);
-        //SendRsp(connection, std::to_string(result));
+		ifstream ifile;
+		std::string msg;
+		std::string path = g_http_server_opts.document_root;
+		path += "index.html";
+		ifile.open(path, ios::in);
+		if(!ifile)
+		{
+			msg = "Open Help File False";
+		}
+		else
+		{
+			ifile.seekg(0, std::ios::end);
+			size_t length = ifile.tellg();
+			ifile.seekg(0, std::ios::beg);
+			char *buffer = new char[length];
+			ifile.read(buffer, length);
+			msg = string(buffer, length);
+		}
+        SendRsp(connection, msg);
     }
     else
     {
-    	std::string meg = "HTTP/1.1 501 Sorry,Not Implemented\r\n Content-Length: 0\r\n\r\n";
-    	SendRsp(connection, meg);
-    	//mg_printf(connection, "%s", "HTTP/1.1 501 Sorry,Not Implemented\r\n" "Content-Length: 0\r\n\r\n");
+    	std::string msg = "HTTP/1.1 Sorry , Not Implemented";
+    	SendRsp(connection, msg);
     }
 }

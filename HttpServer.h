@@ -7,21 +7,23 @@
 
 #ifndef HTTPSERVER_H_
 #define HTTPSERVER_H_
-#include <iostream>
+
+#include "MatData.h"
+#include "json/json.h"
+//#include "Message.pb.h"
+
+#include <fstream>
 #include <unordered_map>
 #include <functional>
 #include <net/if.h>
 #include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
-#include <MatData.h>
 #include <sys/ioctl.h>
 #include <netinet/in.h>
 #include <sys/types.h>
 #include <sys/socket.h>
-
-#include "json/json.h"
-//#include "Message.pb.h"
+#include <memory>
 
 #if defined(__GNUC__)
 #pragma GCC diagnostic push
@@ -29,6 +31,14 @@
 #elif defined(_MSC_VER)
 #pragma warning(disable : 4996)
 #endif
+
+#define THREAD_EXIT "10101010101010"
+#define BUFFER_SIZE (40)	//定义一个缓冲区的大小
+#define USED_VECTOR_FEATURE 1
+#define USED_MYSQL_FEATURE 0
+#define USED_REDIS_FEATURE 0
+
+#define KEY_MAX_SIZE 20
 
 //定义http返回callback
 typedef void OnRspCallback(http_conn *nc, std::string);
@@ -39,6 +49,7 @@ class HttpServer;
 
 typedef struct tid_sd
 {
+	int gpu_id;
 	pthread_t ftid;
 	pthread_t tid;
 	int sockfd[2];
@@ -46,7 +57,8 @@ typedef struct tid_sd
 
 typedef struct FeatureData
 {
-	size_t id;
+	std::string id;
+	std::string date;
 	float feature[512];
 }FeatureData;
 
@@ -77,6 +89,9 @@ private:
 	static void SendRsp(http_conn *connection, std::string rsp);
 	static void date_queue_clear();
 	static void feature_map_clear();
+
+	// 文件方式上传函数
+	//static void handle_upload(http_conn*, int, void*);
 
 private:
 	std::string m_port;    //端口

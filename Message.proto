@@ -1,5 +1,0 @@
-message imageData
-{
-    optional string uuid = 1;
-    optional bytes data = 2;
-}
