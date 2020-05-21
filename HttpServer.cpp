@@ -140,7 +140,6 @@ void HttpServer::http_event_handler(http_conn *nc, int event_type, void *event_d
 //	}
 	else if (event_type == MG_EV_HTTP_REQUEST)
 	{
-		cout << "http-->event_type: " << "MG_EV_HTTP_REQUEST" << endl;
 		http_message *http_req = (http_message *)event_data;
 		//文件上传可以启用该函数，如果传输数据打开，客户端postman接收不到应答
 	    //mg_serve_http(nc, http_req, g_http_server_opts);
@@ -149,35 +148,13 @@ void HttpServer::http_event_handler(http_conn *nc, int event_type, void *event_d
 		//mbuf_clear(&nc->recv_mbuf);
 		mbuf_remove(&nc->recv_mbuf, nc->recv_mbuf.len);
 	}
-	else if (event_type == MG_EV_HTTP_CHUNK)
-	{
-		cout << "http-->event_type: " << "MG_EV_HTTP_CHUNK" << endl;
-		http_message *http_req = (http_message *)event_data;
-		if (http_req && http_req->method.len != 0)
-			cout << "http-->method: " << string(http_req->method.p,http_req->method.len) << endl;
-		if (http_req && http_req->uri.len != 0)
-			cout << "http-->uri: " << string(http_req->uri.p,http_req->uri.len) << endl;
-		if (http_req && http_req->query_string.len != 0)
-			cout << "http-->query_string: " << string(http_req->query_string.p,http_req->query_string.len) << endl;
-	}
 	else if (event_type == MG_EV_RECV)
 	{
-		cout << "http-->event_type: " << "MG_EV_RECV" << endl;
-		int num_received_bytes = *(int*)event_data;
-		cout << "receive data size = " << num_received_bytes << endl;
-
 		date_queue_clear();
 		feature_map_clear();
 	}
-	else if (event_type == MG_EV_SEND)
-	{
-		cout << "http-->event_type: " << "MG_EV_SEND" << endl;
-		int num_send_bytes = *(int*)event_data;
-		cout << "send data size = " << num_send_bytes << endl;
-	}
 	else if (event_type == MG_EV_ACCEPT)
 	{
-		cout << "http-->event_type: " << "MG_EV_ACCEPT" << endl;
 		//mbuf_resize(&nc->recv_mbuf,2000*2000*3);
 		union socket_address* psAdd = (union socket_address*)event_data;
 		if (psAdd->sin.sin_family == AF_INET) //is a valid IP4 Address
@@ -195,21 +172,8 @@ void HttpServer::http_event_handler(http_conn *nc, int event_type, void *event_d
 //		    inet_ntop(af_inet6, tmpaddrptr, addressbuffer, INET6_ADDRSTRLEN);
 		}
 	}
-	else if (event_type == MG_EV_CONNECT)
-	{
-		cout << "http-->event_type: " << "MG_EV_CONNECT" << endl;
-		int success = *(int *)event_data;
-		cout << "connect status = " << success << endl;
-	}
-	else if (event_type == MG_EV_TIMER)
-	{
-		cout << "http-->event_type: " << "MG_EV_TIMER" << endl;
-		double timer = *(double*)event_data;
-		cout << "fd timeout = " << timer << endl;
-	}
 	else if (event_type == MG_EV_CLOSE)
 	{
-		cout << "http-->event_type: " << "MG_EV_CLOSE" << endl;
 		/*
 		 * 一次链接断开后删除相关的nc数据
 		 * 测试保留原始处理方式
@@ -312,6 +276,34 @@ void HttpServer::HandleEvent(http_conn *connection, http_message *http_req)
 			msg = string(buffer, length);
 		}
         SendRsp(connection, msg);
+    }
+    else if (route_check(http_req, "/log"))
+    {
+		ifstream ifile;
+		std::string msg;
+		std::string path = g_http_server_opts.document_root;
+		path += "faceInfo.html";
+		ifile.open(path, ios::in);
+		if(!ifile)
+		{
+			msg = "Dont't log File!";
+		}
+		else
+		{
+			ifile.seekg(0, std::ios::end);
+			size_t length = ifile.tellg();
+			ifile.seekg(0, std::ios::beg);
+			char *buffer = new char[length];
+			ifile.read(buffer, length);
+			msg = string(buffer, length);
+		}
+        SendRsp(connection, msg);
+    }
+    else if (route_check(http_req, "/clear"))
+    {
+		Logger::clear();
+		std::string msg = "clear log success!!";
+    	SendRsp(connection, msg);
     }
     else
     {

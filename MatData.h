@@ -10,6 +10,7 @@
 
 #define MG_ENABLE_HTTP_STREAMING_MULTIPART 1
 
+#include "logger.h"
 #include "mongoose.h"
 #include "opencv2/opencv.hpp"
 
@@ -43,13 +44,15 @@ typedef enum ERRTYPE
 	HTTP_RECEIVE_DATA_SIZE_ERR,
 	HTTP_RECEIVE_DATA_PARSE_ERR,
 	HTTP_DATA_OUTRANGE,
+	HTTP_TYPE_DATA_ERROR,
 
 	HTTP_DATA_FACERESULT_ERROR = 200,
 	HTTP_DATA_FACEALL_OK,
 	HTTP_DATA_FACEBOXFEATURE_OK,
 	HTTP_DATA_GENDER_OK,
 
-	HTTP_MYSQL_PRIMARY_KEY_DUPLICATE = 300
+	HTTP_MYSQL_PRIMARY_KEY_REPEAT= 300,
+	HTTP_MYSQL_PRIMARY_KEY_OPERATOR_ERR
 }ERRTYPE;
 
 class MatData
@@ -81,6 +84,8 @@ public:
 	int image_c;
 
 	int m_flag;
+
+	std::string id; ///tmp use
 
 	//frame Mat data format
 	std::string data;

@@ -19,9 +19,13 @@ ConnJDBC::ConnJDBC()
 
 	m_pConn = m_pDriver->connect("localhost", "admini", "123456");
 
-	//m_pConn->setAutoCommit(1);
+	m_pConn->setAutoCommit(1);
 
 	m_pStat = m_pConn->createStatement();
+
+	//在默认配置不改变的情况下，如果连续8小时内都没有访问数据库的操作，再次访问mysql数据库的时候，mysql数据库会拒绝访问
+	m_pStat->executeUpdate("set global wait_timeout=2814400;");
+	m_pStat->executeUpdate("set global interactive_timeout=2814400;");
 
 	m_JdbcStat = true;
 }

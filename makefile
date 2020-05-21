@@ -10,7 +10,8 @@ CPP_SRCS += \
 ./MatData.cpp \
 ./mongoose.c \
 ./base64.cpp \
-./ConnJDBC.cpp
+./ConnJDBC.cpp \
+./logger.cpp
 
 OBJS += \
 ./gsFaceDetectHttpServer.o \
@@ -18,7 +19,8 @@ OBJS += \
 ./MatData.o \
 ./mongoose.o \
 ./base64.o \
-./ConnJDBC.o
+./ConnJDBC.o \
+./logger.o
 
 CPP_DEPS += \
 ./gsFaceDetectHttpServer.d \
@@ -26,7 +28,8 @@ CPP_DEPS += \
 ./MatData.d \
 ./ConnJDBC.d \
 ./base64.d \
-./mongoose.d
+./mongoose.d \
+./logger.d
 
 # All Target
 all: gsFaceDetectHttpServer

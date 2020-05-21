@@ -43,14 +43,30 @@ public:
 
 	inline int setUpdateCommand(const std::string& command)
 	{
+		if (m_pConn->isClosed())
+	    {   
+			m_pStat->close();
+			m_pConn->reconnect();
+			m_pConn->setAutoCommit(1);
+		    m_pStat = m_pConn->createStatement();
+	    }
+		//m_pStatU = m_pConn->createStatement();	
 		int updateCount = m_pStat->executeUpdate(command);
 		return updateCount;
+	}
+	inline void setRollBack()
+	{
+		m_pConn->rollback();
+		//m_pStat->close();
+		//m_pStatU->close();
+		//m_pStat = m_pConn->createStatement();	
 	}
 
 private:
 	bool m_JdbcStat;
 	Connection *m_pConn;
 	Statement *m_pStat;
+	//Statement *m_pStatU;
 	mysql::MySQL_Driver *m_pDriver;
 };
 

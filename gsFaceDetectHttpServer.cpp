@@ -37,6 +37,9 @@ std::vector<FeatureData> feature_queue;
 int thread_num = 1;
 std::string proto_model_dir = "/opt/lib_ai/faceSDK/mtcnn-model/";
 std::string tensorflow_model_dir = "tensorflow/mars-small128.pb";
+std::string info_filename = "/home/gs-cv/faceInfo.html";
+std::string error_filename = "/home/gs-cv/faceerror.html";
+std::string warn_filename = "/home/gs-cv/facewarn.html";
 
 std::string getCurrentTime();
 
@@ -56,6 +59,37 @@ std::string senderTostring(std::string& uuid, ERRTYPE type)
 	root["uuid"] = Json::Value(uuid);
 	root["status"] = Json::Value(type);
 	return fw.write(root);
+}
+
+void setFeatureList()
+{
+	ConnJDBC mysql;
+	mysql.selectDataBase("use sys");
+	auto faceData = mysql.setQueryCommand("select * from FaceData");
+	while (faceData->next())
+	{
+		FeatureData fq;
+		Json::Value val;
+		Json::Reader reader;
+
+		fq.id = faceData->getString("FaceID");
+		fq.date = faceData->getString("FaceDate");
+
+		std::string feature = faceData->getString("FaceFeature");
+		if (!reader.parse(feature, val))
+			continue;
+
+		if (val.size() != 512)
+			continue;
+
+		for (int i = 0; i < 512; ++i)
+		{
+			fq.feature[i] = val[i].asFloat();
+		}
+
+		feature_queue.push_back(fq);
+	}
+	//cout << feature_queue.size() << endl;
 }
 
 std::string getHttpHeaderNameValue(const http_message *http_msg, std::string name)
@@ -130,8 +164,6 @@ std::string getHttpBodyImageValue(std::string& body, size_t length)
 
 bool handle_getFaceALL(http_conn *nc, http_message *http_msg, OnRspCallback rsp_callback)
 {
-    std::cout << "handle_getFaceALL" << std::endl;
-
     static int count = 0;
     MatData data;
 	Json::Reader reader;
@@ -144,6 +176,7 @@ bool handle_getFaceALL(http_conn *nc, http_message *http_msg, OnRspCallback rsp_
 
     if (mg_vcmp(&http_msg->method, "GET") == 0)
     {
+		try { 
     	//从字符串中读取数据
     	if (reader.parse(body, root))
     	{
@@ -162,6 +195,11 @@ bool handle_getFaceALL(http_conn *nc, http_message *http_msg, OnRspCallback rsp_
     		date_queue.insert(std::make_pair(uuid, data));
 
 			std::string msg = senderTostring(uuid, HTTP_REQUEST_CREATE_OK);
+			std::string logmsg = "get req uuid:";
+			logmsg += uuid;
+			logmsg += "<br>"; 
+			LOG(INFO) << logmsg;
+			cout << "time:"  << getCurrentTime() << " >>>> get req uuid:" << uuid << endl;
     		rsp_callback(nc, msg);
     	}
     	else
@@ -169,6 +207,15 @@ bool handle_getFaceALL(http_conn *nc, http_message *http_msg, OnRspCallback rsp_
     		//send HTTP_REQUEST_PARSE_ERR
     		rsp_callback(nc, "{ \"status\": 102 }");
     	}
+		}
+		catch(std::out_of_range& err) {
+			//send HTTP_DATA_OUTRANGE
+    		rsp_callback(nc, "{ \"status\": 108 }");
+		}
+		catch(std::invalid_argument& err) {
+			//send HTTP_TYPE_DATA_ERROR
+    		rsp_callback(nc, "{ \"status\": 109 }");
+		}
     }
     //添加 form-data 数据解析
     else if (!Content_Type.compare("multipart/form-data") && mg_vcmp(&http_msg->method, "POST") == 0)
@@ -204,6 +251,11 @@ bool handle_getFaceALL(http_conn *nc, http_message *http_msg, OnRspCallback rsp_
 				//send HTTP_DATA_RECEIVE_FINISH
 				//std::string msg = senderTostring(uuid, HTTP_DATA_RECEIVE_FINISH);
 				//rsp_callback(nc, msg);
+				std::string logmsg = "get send uuid:";
+				logmsg += uuid;
+				logmsg += "<br>"; 
+				LOG(INFO) << logmsg;
+				cout << "time:"  << getCurrentTime() << " >>>> get send uuid:" << uuid << endl;
 				write(iter->second.write_fd, uuid.c_str(), uuid.size());
 			}
 			else
@@ -256,6 +308,11 @@ bool handle_getFaceALL(http_conn *nc, http_message *http_msg, OnRspCallback rsp_
 					//send HTTP_DATA_RECEIVE_FINISH
 					//std::string msg = senderTostring(uuid, HTTP_DATA_RECEIVE_FINISH);
 					//rsp_callback(nc, msg);
+					std::string logmsg = "get send uuid:";
+					logmsg += uuid;
+					logmsg += "<br>"; 
+					LOG(INFO) << logmsg;
+					cout << "time:"  << getCurrentTime() << " >>>> get send uuid:" << uuid << endl;
 					write(iter->second.write_fd, uuid.c_str(), uuid.size());
 				}
 				else
@@ -272,7 +329,7 @@ bool handle_getFaceALL(http_conn *nc, http_message *http_msg, OnRspCallback rsp_
 		{
 			//send HTTP_RECEIVE_DATA_FORMAT_ERR
 			rsp_callback(nc, "{ \"status\": 103 }");
-			std::cout << "rsp_callbackx getFaceALL" << std::endl;
+			//std::cout << "rsp_callbackx getFaceALL" << std::endl;
 		}
     }
     else
@@ -286,8 +343,6 @@ bool handle_getFaceALL(http_conn *nc, http_message *http_msg, OnRspCallback rsp_
 
 bool handle_setFaceFeature(http_conn *nc, http_message *http_msg, OnRspCallback rsp_callback)
 {
-	std::cout << "handle_setFaceFeature" << std::endl;
-
 	Json::Reader reader;
 	Json::Value root;
 
@@ -308,8 +363,14 @@ bool handle_setFaceFeature(http_conn *nc, http_message *http_msg, OnRspCallback 
 			tmp_feature_data.write_fd = feature_fd_map.sockfd[0];
 			// 1=add, 2=del, 3=update
 			tmp_feature_data.request_type = std::stoi(query_string.substr(5));
+			tmp_feature_data.id = uuid;
 			//send HTTP_REQUEST_CREATE_OK
 			std::string msg = senderTostring(uuid, HTTP_REQUEST_CREATE_OK);
+			std::string logmsg = "set req uuid:";
+			logmsg += uuid;
+			logmsg += "<br>"; 
+			LOG(INFO) << logmsg;
+			cout << "time:" << getCurrentTime() << " >>>> set req uuid:" << uuid << endl;
 			rsp_callback(nc, msg);
 		}
 		else
@@ -321,7 +382,10 @@ bool handle_setFaceFeature(http_conn *nc, http_message *http_msg, OnRspCallback 
 		catch(std::out_of_range& err) {
 			//send HTTP_DATA_OUTRANGE
     		rsp_callback(nc, "{ \"status\": 108 }");
-
+		}
+		catch(std::invalid_argument& err) {
+			//send HTTP_TYPE_DATA_ERROR
+    		rsp_callback(nc, "{ \"status\": 109 }");
 		}
 	}
 	else if (mg_vcmp(&http_msg->method, "POST") == 0)
@@ -363,6 +427,11 @@ bool handle_setFaceFeature(http_conn *nc, http_message *http_msg, OnRspCallback 
 			//send HTTP_DATA_RECEIVE_FINISH
 			//std::string msg = senderTostring(uuid, HTTP_DATA_RECEIVE_FINISH);
 			//rsp_callback(nc, msg);
+			std::string logmsg = "set send uuid:";
+			logmsg += uuid;
+			logmsg += "<br>"; 
+			LOG(INFO) << logmsg;
+			cout << "time:"  << getCurrentTime() << " >>>> set send uuid:" << uuid << endl;
 			write(tmp_feature_data.write_fd, uuid.c_str(), uuid.size());
 		}
 		else
@@ -374,7 +443,6 @@ bool handle_setFaceFeature(http_conn *nc, http_message *http_msg, OnRspCallback 
     {
     	//send HTTP_REQUEST_METHOD_ERROR
     	rsp_callback(nc, "{ \"status\": 105 }");
-    	std::cout << "rsp_callback setFaceFeature" << std::endl;
     }
 
 	return true;
@@ -382,8 +450,6 @@ bool handle_setFaceFeature(http_conn *nc, http_message *http_msg, OnRspCallback 
 
 bool handle_getFaceFeatureCompare(http_conn *nc, http_message *http_msg, OnRspCallback rsp_callback)
 {
-    std::cout << "handle_getFaceFeatureCompare" << std::endl;
-
     static int count = 0;
     std::shared_ptr<MatData> data = std::make_shared<MatData>();
 	Json::Reader reader;
@@ -395,6 +461,7 @@ bool handle_getFaceFeatureCompare(http_conn *nc, http_message *http_msg, OnRspCa
 
 	if (mg_vcmp(&http_msg->method, "GET") == 0)
 	{
+		try {
 		//从字符串中读取数据
 		if (reader.parse(body, root))
 		{
@@ -412,12 +479,26 @@ bool handle_getFaceFeatureCompare(http_conn *nc, http_message *http_msg, OnRspCa
 			feature_map.insert(std::make_pair(uuid, data));
 			//send HTTP_REQUEST_CREATE_OK
 			std::string msg = senderTostring(uuid, HTTP_REQUEST_CREATE_OK);
+			std::string logmsg = "compare req uuid:";
+			logmsg += uuid;
+			logmsg += "<br>"; 
+			LOG(INFO) << logmsg;
+			cout << "time:" << getCurrentTime() << " >>>> compare req uuid:" << uuid << endl;
 			rsp_callback(nc, msg);
 		}
 		else
 		{
 			//send HTTP_REQUEST_PARSE_ERR
 			rsp_callback(nc, "{ \"status\": 102 }");
+		}
+		}
+		catch(std::out_of_range& err) {
+			//send HTTP_DATA_OUTRANGE
+    		rsp_callback(nc, "{ \"status\": 108 }");
+		}
+		catch(std::invalid_argument& err) {
+			//send HTTP_TYPE_DATA_ERROR
+    		rsp_callback(nc, "{ \"status\": 109 }");
 		}
 	}
 	else if (mg_vcmp(&http_msg->method, "POST") == 0)
@@ -463,6 +544,11 @@ bool handle_getFaceFeatureCompare(http_conn *nc, http_message *http_msg, OnRspCa
 				//send HTTP_DATA_RECEIVE_FINISH
 				//std::string msg = senderTostring(uuid, HTTP_DATA_RECEIVE_FINISH);
 				//rsp_callback(nc, msg);
+				std::string logmsg = "compare send uuid:";
+				logmsg += uuid;
+				logmsg += "<br>"; 
+				LOG(INFO) << logmsg;
+				cout << "time:"  << getCurrentTime() << " >>>> compare send uuid:" << uuid << endl;
 				write(iter->second->write_fd, uuid.c_str(), uuid.size());
 			}
 			else
@@ -479,7 +565,7 @@ bool handle_getFaceFeatureCompare(http_conn *nc, http_message *http_msg, OnRspCa
 	{
 		//send HTTP_RECEIVE_DATA_FORMAT_ERR
 		rsp_callback(nc, "{ \"status\": 103 }");
-		std::cout << "rsp_callback getFaceFeatureCompare" << std::endl;
+		//std::cout << "rsp_callback getFaceFeatureCompare" << std::endl;
 	}
 
     return true;
@@ -612,7 +698,7 @@ void* sdl_functions(void* par)
 						status = HTTP_DATA_FACEBOXFEATURE_OK;
 						break;
 					case 3:
-						req_type = GetFaceType::FACEGENDER;
+						req_type = FACEBOXGENDER;
 						status = HTTP_DATA_GENDER_OK;
 						break;
 				}
@@ -662,6 +748,14 @@ void* sdl_functions(void* par)
 		    // 发送空白字符快，结束当前响应
 		    mg_send_http_chunk(iter->second.m_nc, "", 0);
 
+			std::string logmsg = "get ret facenum: ";
+			logmsg += to_string(size);
+			logmsg += " uuid:";
+			logmsg += uuid;
+			logmsg += "<br>"; 
+			LOG(INFO) << logmsg;
+			cout << "time:" << getCurrentTime() << " >>>> get ret uuid:" << uuid << endl;
+
 		    //数据处理完成
 		   	iter->second.process_status = true;
 		}
@@ -698,10 +792,16 @@ void* afsdl_functions(void* par)
 
 		std::cout << "uuid: " << uuid << " $$ threadID: " << id <<std::endl;
 
+		int result = 0;
 		Json::Reader reader;
 		Json::Value root;
 		try {
-			if (reader.parse(tmp_feature_data.data, root))
+			if (uuid.compare(tmp_feature_data.id))
+			{
+				//send HTTP_RECEIVE_UUID_ERR
+				sendmsg = senderTostring(uuid, HTTP_RECEIVE_UUID_ERR); 
+			}		
+			else if (reader.parse(tmp_feature_data.data, root))
 			{
 				//1=add, 2=del, 3=update
 				for (int i = 0; i < tmp_feature_data.image_c; i++)
@@ -717,12 +817,12 @@ void* afsdl_functions(void* par)
 						std::string feature = root["gsafety"][i]["feature"].toStyledString();
 						data.date = ::getCurrentTime();
 
-						std::string command = "INSERT INTO FaceData (FaceId,FaceFeature,FaceDate) VALUES ('";
+						std::string command = "INSERT INTO FaceData (FaceID,FaceFeature,FaceDate) VALUES ('";
 						command += data.id; command += "','";
 						command += feature; command += "','";
 						command += data.date;
 						command += "')";
-						mysql.setUpdateCommand(command);
+						result += mysql.setUpdateCommand(command);
 
 						feature_queue.push_back(data);
 					}
@@ -737,9 +837,10 @@ void* afsdl_functions(void* par)
 								iter++;
 								continue;
 							}
-							std::string command = "DELETE FROM FaceData WHERE FaceId=";
+							std::string command = "DELETE FROM FaceData WHERE FaceID='";
 							command += id;
-							mysql.setUpdateCommand(command);
+							command += "'";
+							result += mysql.setUpdateCommand(command);
 
 							feature_queue.erase(iter);
 							break;
@@ -759,9 +860,10 @@ void* afsdl_functions(void* par)
 							std::string feature = root["gsafety"][i]["feature"].toStyledString();
 							std::string command = "UPDATE FaceData SET FaceFeature='";
 							command += feature;
-							command += "' WHERE FaceId=";
+							command += "' WHERE FaceID='";
 							command += id;
-							mysql.setUpdateCommand(command);
+							command += "'";
+							result += mysql.setUpdateCommand(command);
 
 							for(int j = 0; j < 512; j++)
 							{
@@ -772,8 +874,25 @@ void* afsdl_functions(void* par)
 					}
 				}
 
-				//send HTTP_DATA_PROCESS_OK
-				sendmsg = senderTostring(uuid, HTTP_DATA_PROCESS_OK);
+				if (result == tmp_feature_data.image_c)
+				{
+					//send HTTP_DATA_PROCESS_OK
+					sendmsg = senderTostring(uuid, HTTP_DATA_PROCESS_OK);
+				}
+				else
+				{   
+					try {
+						feature_queue.clear();
+						setFeatureList();
+					}
+			    	catch (sql::SQLException &e)
+    				{
+        				 cout << e.what() << ",state:" << e.getSQLState() << "\nerrorCode: " << e.getErrorCode() << endl;
+   					}
+					//send HTTP_MYSQL_PRIMARY_KEY_OPERATOR_ERR 
+					sendmsg = senderTostring(uuid, HTTP_MYSQL_PRIMARY_KEY_OPERATOR_ERR);
+
+				}
 			}
 			else
 			{
@@ -788,8 +907,10 @@ void* afsdl_functions(void* par)
 		}
 		catch(sql::SQLException& err)
 		{
-			//send HTTP_MYSQL_PRIMARY_KEY_DUPLICATE
-			sendmsg = senderTostring(uuid, HTTP_MYSQL_PRIMARY_KEY_DUPLICATE);
+			//send HTTP_MYSQL_PRIMARY_KEY_REPEAT
+			std::cout << err.what() << endl; 
+			sendmsg = senderTostring(uuid, HTTP_MYSQL_PRIMARY_KEY_REPEAT);
+			mysql.setRollBack();
 		}
 		std::cout << "feature_queue num: " << feature_queue.size() <<std::endl;
 
@@ -797,6 +918,11 @@ void* afsdl_functions(void* par)
 	    mg_printf(tmp_feature_data.m_nc, "%s", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n");
 	    mg_printf_http_chunk(tmp_feature_data.m_nc, sendmsg.c_str());
 	    mg_send_http_chunk(tmp_feature_data.m_nc, "", 0);
+		std::string logmsg = "set ret uuid:";
+		logmsg += uuid;
+		logmsg += "<br>"; 
+		LOG(INFO) << logmsg;
+		cout << "time:" << getCurrentTime() << " >>>> set ret uuid:" << uuid << endl;
 	}
 	return nullptr;
 }
@@ -804,13 +930,14 @@ void* afsdl_functions(void* par)
 void* fsdl_functions(void* par)
 {
 	tid_sd *value = (tid_sd*)par;
-	pthread_t id = value->ftid;
+	pthread_t t_id = value->ftid;
 	int read_fd = value->sockfd[0];
-	cout << "fsdl_functions running tid: " << id << endl;
+	cout << "fsdl_functions running tid: " << t_id << endl;
 	float Standard = 0.62;
 	while(true)
 	{
 		int readlen;
+		std::string id;
 		string sendmsg;
 		Json::Value root;
 		Json::Value wroot;
@@ -824,14 +951,14 @@ void* fsdl_functions(void* par)
 		if (!uuid.compare(THREAD_EXIT))
 			break;
 
-		std::cout << "uuid: " << uuid << " $$ threadID: " << id << " $$ feature_queue num: " << feature_queue.size() <<std::endl;
+		std::cout << "uuid: " << uuid << " $$ threadID: " << t_id << " $$ feature_queue num: " << feature_queue.size() <<std::endl;
 
+		float maxsim = 0.0;
 		auto iter = feature_map.find(uuid);
 		try {
 			if (iter != feature_map.end() && reader.parse(iter->second->data, root))
 			{
-				string id = "19700000000000";
-				float maxsim = 0.0;
+				id = "19700000000000";
 				size_t flen = feature_queue.size();
 				// 提取第一个512特征
 				for (int i = 0; i < 512; i++)
@@ -863,16 +990,18 @@ void* fsdl_functions(void* par)
 						float sim = getSimilarity(iter->second->featue, feature);
 						if (sim >= Standard)
 						{
-							maxsim = sim > maxsim ? id = i,sim : maxsim;
+							maxsim = sim > maxsim ? id = to_string(i),sim : maxsim;
 						}
 					}
 				}
 				wroot["uuid"] = Json::Value(uuid);
 				//send HTTP_DATA_PROCESS_OK
 				wroot["status"] = Json::Value(HTTP_DATA_PROCESS_OK);
+				maxsim = (maxsim + 1.0)/2.0;
 				wroot["sim"] = Json::Value(maxsim);
 				wroot["id"] = Json::Value(id);
 				sendmsg = fw.write(wroot);
+				cout << "\n\n\n" << "smi=" << maxsim << "\n\n\n" << endl;
 			}
 			else
 			{
@@ -889,6 +1018,15 @@ void* fsdl_functions(void* par)
 		mg_printf_http_chunk(iter->second->m_nc, sendmsg.c_str());
 		mg_send_http_chunk(iter->second->m_nc, "", 0);
 		iter->second->process_status = true;
+		std::string logmsg = "compare ret sim: ";
+		logmsg += to_string(maxsim);
+		logmsg += " ID: ";
+	    logmsg += id;
+		logmsg += " uuid:";
+		logmsg += uuid;
+		logmsg += "<br>"; 
+		LOG(INFO) << logmsg;
+		cout << "time:" << getCurrentTime() << " >>>> compare ret uuid:" << uuid << endl;
 	}
 	return nullptr;
 }
@@ -1060,6 +1198,8 @@ int main(int argc, char *argv[])
 		}
 	}
 
+	initLogger(info_filename, warn_filename, error_filename);
+
 	std::string ip = GetHostIp(network);
 
 	if (!ip.compare("0.0.0.0"))
@@ -1071,33 +1211,7 @@ int main(int argc, char *argv[])
 	ip += ":"; ip += port;
 
 	try {
-		ConnJDBC mysql;
-		mysql.selectDataBase("use sys");
-		auto faceData = mysql.setQueryCommand("select * from FaceData");
-		while (faceData->next())
-		{
-			FeatureData fq;
-			Json::Value val;
-			Json::Reader reader;
-
-			fq.id = faceData->getString("FaceID");
-			fq.date = faceData->getString("FaceDate");
-
-			std::string feature = faceData->getString("FaceFeature");
-			if (!reader.parse(feature, val))
-				continue;
-
-			if (val.size() != 512)
-				continue;
-
-			for (int i = 0; i < 512; ++i)
-			{
-				fq.feature[i] = val[i].asFloat();
-			}
-
-			feature_queue.push_back(fq);
-		}
-		//cout << feature_queue.size() << endl;
+		setFeatureList();
 	}
     catch (sql::SQLException &e)
     {
